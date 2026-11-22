@@ -435,29 +435,68 @@ class MainWindow(QMainWindow):
             if self.bookings_scroll_layout.itemAt(i).widget():
                 self.bookings_scroll_layout.itemAt(i).widget().setParent(None)
 
-        bookings = self.db_manager.get_user_bookings(self.current_user_id)
+        # ЕСЛИ ВОШЕЛ АДМИН (ОТЕЛЬЕР) — показываем сводку всех клиентов
+        if self.auth_login.text().strip().lower() == "admin" or self.current_user_role == "manager":
+            with self.db_manager._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT b.id, u.login, r.title, b.start_date, b.end_date, b.total_cost
+                    FROM Bookings b
+                    JOIN Rooms r ON b.room_id = r.id
+                    JOIN Users u ON b.user_id = u.id;
+                ''')
+                bookings = cursor.fetchall()
 
-        if not bookings:
-            lbl_empty = QLabel("У вас пока нет активных бронирований.")
-            lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.bookings_scroll_layout.addWidget(lbl_empty)
-            return
+            if not bookings:
+                lbl_empty = QLabel("В панели отельера пока нет бронирований от клиентов.")
+                lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.bookings_scroll_layout.addWidget(lbl_empty)
+                return
 
-        for b_id, title, resort, s_date, e_date, cost in bookings:
-            b_card = QFrame()
-            b_card.setObjectName("card")
-            b_layout = QHBoxLayout(b_card)
+            for b_id, c_login, title, s_date, e_date, cost in bookings:
+                b_card = QFrame()
+                b_card.setObjectName("card")
+                b_layout = QHBoxLayout(b_card)
 
-            info = QVBoxLayout()
-            lbl_t = QLabel(f"✈️ {title} ({resort})")
-            lbl_t.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-            info.addWidget(lbl_t)
-            info.addWidget(QLabel(f"📅 Сроки: {s_date} — {e_date}"))
-            
-            b_layout.addLayout(info)
-            
-            lbl_cost = QLabel(f"<b>{cost} руб.</b>")
-            lbl_cost.setStyleSheet("color: #34C759; font-size: 16px;")
-            b_layout.addWidget(lbl_cost)
+                info = QVBoxLayout()
+                lbl_t = QLabel(f"👤 Клиент: {c_login}  —  🏨 Объект: {title}")
+                lbl_t.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+                info.addWidget(lbl_t)
+                info.addWidget(QLabel(f"📅 Сроки заезда: {s_date} — {e_date}"))
+                
+                b_layout.addLayout(info)
+                
+                lbl_cost = QLabel(f"<b>Получено: {cost} руб.</b>")
+                lbl_cost.setStyleSheet("color: #007AFF; font-size: 14px;")
+                b_layout.addWidget(lbl_cost)
 
-            self.bookings_scroll_layout.addWidget(b_card)
+                self.bookings_scroll_layout.addWidget(b_card)
+
+        # ЕСЛИ ВОШЕЛ ОБЫЧНЫЙ КЛИЕНТ — показываем его личные брони
+        else:
+            bookings = self.db_manager.get_user_bookings(self.current_user_id)
+
+            if not bookings:
+                lbl_empty = QLabel("У вас пока нет активных бронирований.")
+                lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.bookings_scroll_layout.addWidget(lbl_empty)
+                return
+
+            for b_id, title, resort, s_date, e_date, cost in bookings:
+                b_card = QFrame()
+                b_card.setObjectName("card")
+                b_layout = QHBoxLayout(b_card)
+
+                info = QVBoxLayout()
+                lbl_t = QLabel(f"✈️ {title} ({resort})")
+                lbl_t.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+                info.addWidget(lbl_t)
+                info.addWidget(QLabel(f"📅 Сроки: {s_date} — {e_date}"))
+                
+                b_layout.addLayout(info)
+                
+                lbl_cost = QLabel(f"<b>{cost} руб.</b>")
+                lbl_cost.setStyleSheet("color: #34C759; font-size: 16px;")
+                b_layout.addWidget(lbl_cost)
+
+                self.bookings_scroll_layout.addWidget(b_card)
