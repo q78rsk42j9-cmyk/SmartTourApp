@@ -376,7 +376,6 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Успех", "Тур успешно добавлен в ваши бронирования!")
             self.search_rooms()
 
-    def load_favorite_rooms(self):
         for i in reversed(range(self.fav_scroll_layout.count())): 
             if self.fav_scroll_layout.itemAt(i).widget():
                 self.fav_scroll_layout.itemAt(i).widget().setParent(None)
@@ -425,6 +424,62 @@ class MainWindow(QMainWindow):
             card_layout.addWidget(btn_unlike)
 
             self.fav_scroll_layout.addWidget(card)
+    def load_favorite_rooms(self):
+        for i in reversed(range(self.fav_scroll_layout.count())): 
+            item = self.fav_scroll_layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+            elif item.spacerItem():
+                self.fav_scroll_layout.removeItem(item)
+
+        all_rooms = self.db_manager.find_available_rooms("", 1, "2000-01-01", "3000-01-01", self.current_user_id)
+        fav_rooms = [r for r in all_rooms if r[6] == 1] 
+
+        if not fav_rooms:
+            lbl_empty = QLabel("У вас пока нет избранных отелей. Нажмите ❤️ на карточке отеля!")
+            lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.fav_scroll_layout.addWidget(lbl_empty)
+            self.fav_scroll_layout.addStretch()
+            return
+
+        for r_id, title, res, r_count, price, img_path, _ in fav_rooms:
+            card = QFrame()
+            card.setObjectName("card")
+            card.setFixedHeight(130)  # Фиксируем аккуратную высоту карточки
+            card_layout = QHBoxLayout(card)
+
+            lbl_img = QLabel()
+            lbl_img.setFixedSize(140, 105)
+            lbl_img.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            file_name = os.path.basename(img_path) if img_path else ""
+            home_path = os.path.expanduser("~")
+            full_img_path = os.path.join(home_path, "Pictures", "smarttour", file_name)
+            
+            if file_name and os.path.exists(full_img_path):
+                pixmap = QPixmap(full_img_path)
+                lbl_img.setPixmap(pixmap.scaled(lbl_img.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+            else:
+                lbl_img.setText("🏨")
+                lbl_img.setStyleSheet("background-color: #E5E5EA; border-radius: 8px; font-size: 32px;")
+            card_layout.addWidget(lbl_img)
+
+            info = QVBoxLayout()
+            lbl_title = QLabel(f"{title}")
+            lbl_title.setFont(QFont("Arial", 16, QFont.Weight.Bold))
+            info.addWidget(lbl_title)
+            info.addWidget(QLabel(f"📍 {res}  •  🛏 Номер: {r_count}-комн."))
+            info.addWidget(QLabel(f"<b>{price} руб.</b> / ночь"))
+            card_layout.addLayout(info)
+
+            btn_unlike = QPushButton("Убрать")
+            btn_unlike.setObjectName("btn_secondary")
+            btn_unlike.clicked.connect(lambda _, rid=r_id: self.remove_from_fav(rid))
+            card_layout.addWidget(btn_unlike)
+
+            self.fav_scroll_layout.addWidget(card)
+
+        self.fav_scroll_layout.addStretch()  # Прижимает карточки к верху экрана
 
     def remove_from_fav(self, room_id):
         self.db_manager.toggle_favorite(self.current_user_id, room_id)
@@ -432,10 +487,12 @@ class MainWindow(QMainWindow):
 
     def load_user_bookings(self):
         for i in reversed(range(self.bookings_scroll_layout.count())): 
-            if self.bookings_scroll_layout.itemAt(i).widget():
-                self.bookings_scroll_layout.itemAt(i).widget().setParent(None)
+            item = self.bookings_scroll_layout.itemAt(i)
+            if item.widget():
+                item.widget().setParent(None)
+            elif item.spacerItem():
+                self.bookings_scroll_layout.removeItem(item)
 
-        # ЕСЛИ ВОШЕЛ АДМИН (ОТЕЛЬЕР) — показываем сводку всех клиентов
         if self.auth_login.text().strip().lower() == "admin" or self.current_user_role == "manager":
             with self.db_manager._get_connection() as conn:
                 cursor = conn.cursor()
@@ -451,11 +508,13 @@ class MainWindow(QMainWindow):
                 lbl_empty = QLabel("В панели отельера пока нет бронирований от клиентов.")
                 lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.bookings_scroll_layout.addWidget(lbl_empty)
+                self.bookings_scroll_layout.addStretch()
                 return
 
             for b_id, c_login, title, s_date, e_date, cost in bookings:
                 b_card = QFrame()
                 b_card.setObjectName("card")
+                b_card.setFixedHeight(90)  # Фиксируем высоту карточки отельера
                 b_layout = QHBoxLayout(b_card)
 
                 info = QVBoxLayout()
@@ -472,7 +531,8 @@ class MainWindow(QMainWindow):
 
                 self.bookings_scroll_layout.addWidget(b_card)
 
-        # ЕСЛИ ВОШЕЛ ОБЫЧНЫЙ КЛИЕНТ — показываем его личные брони
+            self.bookings_scroll_layout.addStretch()
+
         else:
             bookings = self.db_manager.get_user_bookings(self.current_user_id)
 
@@ -480,11 +540,13 @@ class MainWindow(QMainWindow):
                 lbl_empty = QLabel("У вас пока нет активных бронирований.")
                 lbl_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.bookings_scroll_layout.addWidget(lbl_empty)
+                self.bookings_scroll_layout.addStretch()
                 return
 
             for b_id, title, resort, s_date, e_date, cost in bookings:
                 b_card = QFrame()
                 b_card.setObjectName("card")
+                b_card.setFixedHeight(90)  # Фиксируем аккуратную высоту брони
                 b_layout = QHBoxLayout(b_card)
 
                 info = QVBoxLayout()
@@ -500,3 +562,5 @@ class MainWindow(QMainWindow):
                 b_layout.addWidget(lbl_cost)
 
                 self.bookings_scroll_layout.addWidget(b_card)
+
+            self.bookings_scroll_layout.addStretch()
